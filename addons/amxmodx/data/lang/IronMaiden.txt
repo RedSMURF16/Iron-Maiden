@@ -1,0 +1,60 @@
+[en] -- RedSMURF
+MAIDEN_CHAT_TAG                                = ^4[IRON MAIDEN]^1
+MAIDEN_CHAT_LIMIT                              = You've reached the maximum number of Iron Maidens ^4%d
+MAIDEN_CHAT_NO_MAIDEN                          = There are no Iron Maidens available
+MAIDEN_CHAT_NOT_ALIVE                          = The target player is not alive
+MAIDEN_CHAT_CREATE_NEW                         = ^3%s ^1created
+MAIDEN_CHAT_REMOVE_CURRENT                     = ^3%s ^1removed
+MAIDEN_CHAT_REMOVE_ALL                         = All Iron Maidens removed
+MAIDEN_CHAT_SAVE                               = Iron Maiden data saved in ^4%s
+MAIDEN_CHAT_SHOW_CURRENT                       = ^3%s ^1is %L
+MAIDEN_CHAT_SHOW_ALL_SHOWN                     = All Iron Maidens are now Shown
+MAIDEN_CHAT_SHOW_ALL_HIDDEN                    = All Iron Maidens are now Hidden
+MAIDEN_CHAT_STATUS_CURRENT                     = ^3%s ^1is %L
+MAIDEN_CHAT_STATUS_ALL_ENABLED                 = All Iron Maidens are now Enabled
+MAIDEN_CHAT_STATUS_ALL_DISABLED                = All Iron Maidens are now Disabled
+
+MAIDEN_CHAT_SHOWN                              = Shown
+MAIDEN_CHAT_HIDDEN                             = Hidden
+MAIDEN_CHAT_ENABLED                            = Enabled
+MAIDEN_CHAT_DISABLED                           = Disabled
+
+MAIDEN_NAV_NEXT                                = Next
+MAIDEN_NAV_BACK                                = Back
+MAIDEN_ON                                      = \y[ON]
+MAIDEN_OFF                                     = \r[OFF]
+MAIDEN_SHOWN                                   = \y[SHOWN]
+MAIDEN_HIDDEN                                  = \r[HIDDEN]
+MAIDEN_ENABLED                                 = \y[ENABLED]
+MAIDEN_DISABLED                                = \r[DISABLED]
+
+MAIDEN_MENU_TITLE                              = \dIron Maiden - Version \y%s
+MAIDEN_MENU_TITLE_PAGE                         = \yPage:\r
+MAIDEN_ROOT_CREATE                             = Create Iron Maiden
+MAIDEN_ROOT_EDIT                               = Edit Iron Maiden
+MAIDEN_ROOT_REMOVE                             = Remove Iron Maiden
+MAIDEN_ROOT_SAVE                               = Save Data
+MAIDEN_ROOT_SHOW                               = Visibility Settings
+MAIDEN_ROOT_STATUS                             = Status Settings
+MAIDEN_ROOT_NOCLIP                             = Status Noclip %L
+MAIDEN_ROOT_GODMODE                            = Status Godmode %L
+MAIDEN_ROOT_ROTATE                             = Adjust Rotation
+
+MAIDEN_EDIT_SHOW                               = Edit Visibility
+MAIDEN_EDIT_STATUS                             = Edit Status
+
+MAIDEN_REMOVE_CURRENT                          = Remove Iron Maiden >> \y%s
+MAIDEN_REMOVE_ALL                              = Remove all Iron Maidens
+
+MAIDEN_SHOW_CURRENT                            = Show Iron Maiden >> %s%s %L
+MAIDEN_SHOW_ALL_SHOW                           = Show all Iron Maidens
+MAIDEN_SHOW_ALL_HIDE                           = Hide all Iron Maidens
+
+MAIDEN_STATUS_CURRENT                          = Enable Iron Maiden >> %s%s %L
+MAIDEN_STATUS_ALL_ENABLE                       = Enable all Iron Maidens
+MAIDEN_STATUS_ALL_DISABLE                      = Disable all Iron Maidens
+
+MAIDEN_ROTATE_UP                               = Turn Up
+MAIDEN_ROTATE_DOWN                             = Turn Down
+MAIDEN_ROTATE_GROUND                           = Set on ground >> %L
+MAIDEN_ROTATE_PLACE                            = Place Iron Maiden
