@@ -53,10 +53,12 @@
 #define MAIDEN_GHOST_ALPHA          120
 #define MAIDEN_ROTATION_STEP        22.5
 #define ADMIN_ACCESS                ADMIN_RCON
+#define ADMIN_ACCESS_VOTE           ADMIN_USER
 #define PDATA_NEXT_ATTACK           83
 #define XO_CBASEPLAYER              5
 #define XO_CBASEPLAYERWEAPON        4
 #define MAIDEN_KEY                  111110
+#define MAIDEN_VOTE_KEY             111111
 #define MAIDEN_ARRAY_ITEM           pev_iuser1
 #define VIEW_FORWARD_OFFSET         192.0
 #define VIEW_RIGHT_OFFSET           64.0
@@ -143,6 +145,10 @@ enum _:MAIN_SETTINGS
     bool:SETTING_PLAY_SOUND_ON_DEATH,
     bool:SETTING_WRITE_MESSAGE_ON_DEATH,
     bool:SETTING_KILL_ALL_EXCLUDE_CALLER,
+    bool:SETTING_VOTE_ENABLED,
+    Float:SETTING_VOTE_COOLDOWN,
+    Float:SETTING_VOTE_DURATION,
+    Float:SETTING_VOTE_PERCENTAGE,
 
     Float:SETTING_HUD_X,
     Float:SETTING_HUD_Y,
@@ -215,7 +221,9 @@ enum
     MENU_REMOVE,
     MENU_SHOW,
     MENU_STATUS,
-    MENU_ROTATE
+    MENU_ROTATE,
+    MENU_VOTE,
+    MENU_VOTE_CONFIRM
 }
 
 enum
@@ -291,7 +299,9 @@ new g_szMenuHandler[][MAX_VALUE_LENGTH] =
     "menuHandlerRemove",
     "menuHandlerShow",
     "menuHandlerStatus",
-    "menuHandlerRotate"
+    "menuHandlerRotate",
+    "menuHandlerVote",
+    "menuHandlerVoteConfirm"
 }
 
 new g_szCN[] = "ironmaiden"
@@ -301,8 +311,9 @@ new Array:g_aMaiden,
     g_eSettings[MAIN_SETTINGS],
     g_ePlayerData[MAX_PLAYERS + 1][PLAYER_DATA],
     bool:g_bFileWasRead, g_iActivePlayers,
-    HamHook:g_iFwdUse, HamHook:g_iFwdObjectCaps, HamHook:g_iFwdPreThink,
+    g_iFwdEmitSound, HamHook:g_iFwdUse, HamHook:g_iFwdObjectCaps, HamHook:g_iFwdPreThink,
     g_iMaiden, g_iMaidenConfig, g_iBarTime, Float:g_iHudCurrentY, g_iHudObject_1, g_iHudObject_2, g_iHudObject_3, g_iHudSlot,
+    g_szVoteTarget[MAX_VALUE_LENGTH], g_iVoteTargetUserid, g_iVoteNo, g_iVoteYes, Float:g_fVoteNext,
     g_iMaxPlayers, g_iSilentVictim, g_iScreenShake
 
 new Float:g_fPlayerOffset[] = { 0.0, 0.0, -9.0 }
@@ -315,9 +326,12 @@ public plugin_init()
 
     register_clcmd("say /maiden",       "cmdMenu", ADMIN_ACCESS, "-- Opens the Maiden menu.")
     register_clcmd("say_team /maiden",  "cmdMenu", ADMIN_ACCESS, "-- Opens the Maiden menu.")
+    register_clcmd("say /maiden_vote",      "cmdVote", ADMIN_ACCESS_VOTE, "-- Opens the player voting menu.")
+    register_clcmd("say_team /maiden_vote", "cmdVote", ADMIN_ACCESS_VOTE, "-- Opens the player voting menu.")
     register_concmd("ironmaiden_reload",  "cmdReload", ADMIN_ACCESS, "-- Reloads the configuration file")
     register_dictionary("IronMaiden.txt")
 
+    g_iFwdEmitSound = register_forward(FM_EmitSound, "fwdEmitSound")
     g_iFwdUse = RegisterHam(Ham_Use, "info_target", "fwdUse")
     g_iFwdObjectCaps = RegisterHam(Ham_ObjectCaps, "info_target", "fwdObjectCaps")
     g_iFwdPreThink = RegisterHam(Ham_Player_PreThink, "player", "fwdPreThink")
@@ -377,7 +391,8 @@ public cmdMenu(id, iLevel, iCmd)
 
     new eMaiden[MAIDEN], bool:bFoundMaiden
     new iArgIndex = 2
-    new bool:bProcessed[33]
+    new bool:bProcessed[33], Float:fCurrentTime
+    fCurrentTime = get_gametime()
     while ( szTarget[0] )
     {
         if ( equali(szTarget, "all") )
@@ -396,7 +411,8 @@ public cmdMenu(id, iLevel, iCmd)
                 for ( new iItem = 0; iItem < g_iMaiden; iItem ++ )
                 {
                     ArrayGetArray(g_aMaiden, iItem, eMaiden)
-                    if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED )
+                    if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED
+                    || fCurrentTime < eMaiden[MAIDEN_NEXT_ACTIVE] )
                         continue
 
                     maidenMaiden(eMaiden, iTarget, true)
@@ -428,7 +444,8 @@ public cmdMenu(id, iLevel, iCmd)
                     for ( new iItem = 0; iItem < g_iMaiden; iItem ++ )
                     {
                         ArrayGetArray(g_aMaiden, iItem, eMaiden)
-                        if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED )
+                        if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED
+                        || fCurrentTime < eMaiden[MAIDEN_NEXT_ACTIVE] )
                             continue
 
                         maidenMaiden(eMaiden, iTarget, true)
@@ -463,6 +480,40 @@ public cmdReload(id, iLevel, iCmd)
     ReadFile()
     console_print(id, "The configuration file has been reloaded successfully !")
 
+    return PLUGIN_HANDLED
+}
+
+public cmdVote(id, iLevel, iCmd)
+{
+    if ( !cmd_access(id, iLevel, iCmd, 1) )
+        return PLUGIN_HANDLED
+
+    if ( !g_eSettings[SETTING_VOTE_ENABLED] )
+    {
+        client_print_color(id, id, "%L %L", id, "MAIDEN_CHAT_TAG", id, "MAIDEN_CHAT_VOTE_DISABLED")
+        return PLUGIN_HANDLED
+    }
+
+    if ( task_exists(MAIDEN_VOTE_KEY)
+    || get_gametime() < g_fVoteNext )
+    {
+        client_print_color(id, id, "%L %L", id, "MAIDEN_CHAT_TAG", id, "MAIDEN_CHAT_VOTE_COOLDOWN")
+        return PLUGIN_HANDLED
+    }
+
+    new iAlive
+    for ( new iPlayer = 1; iPlayer <= g_iMaxPlayers; iPlayer ++ )
+        if ( is_user_alive(iPlayer) )
+            iAlive ++
+
+    if ( !iAlive )
+    {
+        client_print_color(id, id, "%L %L", id, "MAIDEN_CHAT_TAG", id, "MAIDEN_CHAT_VOTE_NO_TARGETS")
+        return PLUGIN_HANDLED
+    }
+
+    maidenSound(id, SOUND_MENU_NAV)
+    maidenMenu(id, MENU_VOTE)
     return PLUGIN_HANDLED
 }
 
@@ -593,6 +644,14 @@ ReadFile()
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH], charsmax(g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH]))
                         else if ( equali(szKey, "SETTING_KILL_ALL_EXCLUDE_CALLER") )
                             parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER], charsmax(g_eSettings[SETTING_KILL_ALL_EXCLUDE_CALLER]))
+                        else if ( equali(szKey, "SETTING_VOTE_ENABLED") )
+                            parseSetting(DTYPE_INT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_ENABLED], charsmax(g_eSettings[SETTING_VOTE_ENABLED]))
+                        else if ( equali(szKey, "SETTING_VOTE_COOLDOWN") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_COOLDOWN], charsmax(g_eSettings[SETTING_VOTE_COOLDOWN]))
+                        else if ( equali(szKey, "SETTING_VOTE_DURATION") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_DURATION], charsmax(g_eSettings[SETTING_VOTE_DURATION]))
+                        else if ( equali(szKey, "SETTING_VOTE_PERCENTAGE") )
+                            parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_VOTE_PERCENTAGE], charsmax(g_eSettings[SETTING_VOTE_PERCENTAGE]))
                         else if ( equali(szKey, "SETTING_HUD_X") )
                             parseSetting(DTYPE_FLOAT, szValue, charsmax(szValue), g_eSettings[SETTING_HUD_X], charsmax(g_eSettings[SETTING_HUD_X]))
                         else if ( equali(szKey, "SETTING_HUD_Y") )
@@ -649,7 +708,7 @@ public client_disconnected(id)
     if ( g_ePlayerData[id][PDATA_MAIDEN_GHOST]
     && (iItem = maidenGet(eMaiden, g_ePlayerData[id][PDATA_MAIDEN_GHOST])) != -1 )
     {
-        maidenKill(eMaiden[MAIDEN_ID])
+        maidenKill(eMaiden)
         maidenRemove(iItem)
     }
 
@@ -682,6 +741,8 @@ stock maidenMenu(id, iType)
         case MENU_SHOW:             { menuShow(id, iMenu);          format(szData, charsmax(szData), "%s^n%L", szData, id, "MAIDEN_ROOT_SHOW"); }
         case MENU_STATUS:           { menuStatus(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "MAIDEN_ROOT_STATUS"); }
         case MENU_ROTATE:           { menuRotate(id, iMenu);        format(szData, charsmax(szData), "%s^n%L", szData, id, "MAIDEN_ROOT_ROTATE"); }
+        case MENU_VOTE:             { menuVote(id, iMenu);          format(szData, charsmax(szData), "%s^n%L", szData, id, "MAIDEN_ROOT_VOTE"); }
+        case MENU_VOTE_CONFIRM:     { menuVoteConfirm(id, iMenu);   format(szData, charsmax(szData), "%s^n%L", szData, id, "MAIDEN_ROOT_VOTE_CONFIRM", g_szVoteTarget); }
     }
 
     if ( menu_pages(iMenu) > 1 )
@@ -926,7 +987,7 @@ public menuHandlerRemove(id, menu, item)
         {
             eMaiden[MAIDEN_FLAGS] &= ~FLAG_ACTIVE
             maidenSetState(eMaiden)
-            maidenKill(eMaiden[MAIDEN_ID])
+            maidenKill(eMaiden)
             maidenRemove(g_ePlayerData[id][PDATA_MAIDEN_MENU])
 
             client_print_color(id, id, "%L %L", id, "MAIDEN_CHAT_TAG", id, "MAIDEN_CHAT_REMOVE_CURRENT", eMaiden[MAIDEN_NAME])
@@ -943,7 +1004,7 @@ public menuHandlerRemove(id, menu, item)
                 eMaiden[MAIDEN_FLAGS] &= ~FLAG_ACTIVE
 
                 maidenSetState(eMaiden)
-                maidenKill(eMaiden[MAIDEN_ID])
+                maidenKill(eMaiden)
                 maidenRemove(0)
             }
 
@@ -1303,7 +1364,7 @@ public menuHandlerRotate(id, menu, item)
         }
         case MENU_EXIT:
         {
-            maidenKill(eMaiden[MAIDEN_ID])
+            maidenKill(eMaiden)
             maidenRemove(iItem)
             DisableAction(id)
             set_pdata_float(id, PDATA_NEXT_ATTACK, 0.0, XO_CBASEPLAYER, XO_CBASEPLAYER)
@@ -1314,7 +1375,7 @@ public menuHandlerRotate(id, menu, item)
         }
         default:
         {
-            maidenKill(eMaiden[MAIDEN_ID])
+            maidenKill(eMaiden)
             maidenRemove(iItem)
             DisableAction(id)
             set_pdata_float(id, PDATA_NEXT_ATTACK, 0.0, XO_CBASEPLAYER, XO_CBASEPLAYER)
@@ -1324,6 +1385,123 @@ public menuHandlerRotate(id, menu, item)
 
     menu_destroy(menu)
     return PLUGIN_HANDLED
+}
+
+public menuVote(id, iMenu)
+{
+    new szName[MAX_NAME_LENGTH], szInfo[8]
+    for ( new iPlayer = 1; iPlayer <= g_iMaxPlayers; iPlayer ++ )
+    {
+        if ( !is_user_alive(iPlayer) )
+            continue
+
+        get_user_name(iPlayer, szName, charsmax(szName))
+        num_to_str(get_user_userid(iPlayer), szInfo, charsmax(szInfo))
+        menu_additem(iMenu, szName, szInfo)
+    }
+
+    return PLUGIN_HANDLED
+}
+
+public menuHandlerVote(id, menu, item)
+{
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    new szInfo[8]
+    menu_item_getinfo(menu, item, _, szInfo, charsmax(szInfo))
+
+    new iUserid = str_to_num(szInfo)
+    new iPlayer = find_player("k", iUserid)
+    if ( !iPlayer || !is_user_alive(iPlayer) )
+    {
+        client_print_color(id, id, "%L %L", id, "MAIDEN_CHAT_TAG", id, "MAIDEN_CHAT_NOT_ALIVE")
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    g_iVoteNo = 0
+    g_iVoteYes = 0
+    g_iVoteTargetUserid = iUserid
+    get_user_name(iPlayer, g_szVoteTarget, charsmax(g_szVoteTarget))
+    set_task(g_eSettings[SETTING_VOTE_DURATION], "taskVoteEnd", MAIDEN_VOTE_KEY)
+    for ( new iTarget = 1; iTarget <= g_iMaxPlayers; iTarget ++ )
+    {
+        if ( !is_user_connected(iTarget) )
+            continue
+
+        maidenSound(iTarget, SOUND_MENU_NAV)
+        maidenMenu(iTarget, MENU_VOTE_CONFIRM)
+    }
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public menuVoteConfirm(id, menu)
+{
+    new szItem[128]
+    formatex(szItem, charsmax(szItem), "%L", id, "MAIDEN_VOTE_YES")
+    menu_additem(menu, szItem)
+
+    formatex(szItem, charsmax(szItem), "%L", id, "MAIDEN_VOTE_NO")
+    menu_additem(menu, szItem)
+}
+
+public menuHandlerVoteConfirm(id, menu, item)
+{
+    if ( item == MENU_EXIT )
+    {
+        menu_destroy(menu)
+        return PLUGIN_HANDLED
+    }
+
+    if ( item == 0 )    g_iVoteYes ++
+    else                g_iVoteNo ++
+
+    menu_destroy(menu)
+    return PLUGIN_HANDLED
+}
+
+public taskVoteEnd()
+{
+    new iTotal = g_iVoteYes + g_iVoteNo
+    new Float:fPercentage
+
+    if ( iTotal )
+        fPercentage = float(g_iVoteYes) / float(iTotal)
+
+    new iTarget = find_player("k", g_iVoteTargetUserid)
+    if ( iTotal && fPercentage >= g_eSettings[SETTING_VOTE_PERCENTAGE]
+    && iTarget && is_user_alive(iTarget) )
+    {
+        new eMaiden[MAIDEN], bool:bFoundMaiden
+        for ( new iItem = 0; iItem < g_iMaiden; iItem ++ )
+        {
+            ArrayGetArray(g_aMaiden, iItem, eMaiden)
+            if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED )
+                continue
+
+            maidenMaiden(eMaiden, iTarget, true)
+            ArraySetArray(g_aMaiden, iItem, eMaiden)
+            bFoundMaiden = true
+            break
+        }
+
+        if ( bFoundMaiden )
+            client_print_color(0, 0, "%L %L", LANG_PLAYER, "MAIDEN_CHAT_TAG", LANG_PLAYER, "MAIDEN_CHAT_VOTE_PASSED", g_szVoteTarget)
+        else
+            client_print_color(0, 0, "%L %L", LANG_PLAYER, "MAIDEN_CHAT_TAG", LANG_PLAYER, "MAIDEN_CHAT_NO_MAIDEN")
+    }
+    else
+    {
+        client_print_color(0, 0, "%L %L", LANG_PLAYER, "MAIDEN_CHAT_TAG", LANG_PLAYER, "MAIDEN_CHAT_VOTE_FAILED", g_szVoteTarget)
+    }
+
+    g_fVoteNext = get_gametime() + g_eSettings[SETTING_VOTE_COOLDOWN]
 }
 
 public maidenTask()
@@ -1337,7 +1515,8 @@ public maidenTask()
         {
             if ( fCurrentTime >= g_ePlayerData[id][PDATA_NEXT_MAIDEN] )
             {
-                if ( (iItem = maidenGet(eMaiden, g_ePlayerData[id][PDATA_MAIDEN_ID])) != -1 )
+                if ( (iItem = maidenGet(eMaiden, g_ePlayerData[id][PDATA_MAIDEN_ID])) != -1
+                && !(eMaiden[MAIDEN_FLAGS] & FLAG_USED) )
                 {
                     g_ePlayerData[id][PDATA_MAIDEN_ID] = 0
                     g_ePlayerData[id][PDATA_NEXT_MAIDEN] = 0.0
@@ -1362,12 +1541,10 @@ public maidenTask()
                     if ( eMaiden[MAIDEN_FLAGS] & FLAG_USED && is_user_alive(id) )
                     {
                         engfunc(EngFunc_SetView, id, id)
-                        set_pev(id, pev_flags, pev(id, pev_flags) & ~FL_FROZEN)
                         set_pev(id, pev_movetype, MOVETYPE_WALK)
 
                         g_iSilentVictim = id
                         ExecuteHamB(Ham_Killed, id, id, GIB_ALWAYS)
-                        maidenSound(eMaiden[MAIDEN_ID], SOUND_CLOSE, false)
                     }
 
                     g_ePlayerData[id][PDATA_MAIDEN_ID] = 0
@@ -1375,6 +1552,7 @@ public maidenTask()
                     eMaiden[MAIDEN_FLAGS] &= ~FLAG_USED
                     eMaiden[MAIDEN_NEXT_ACTIVE] = fCurrentTime + random_float(eMaiden[MAIDEN_COOLDOWN][0], eMaiden[MAIDEN_COOLDOWN][1])
                     maidenSetSeq(eMaiden[MAIDEN_ID], MAIDEN_SEQ_CLOSED, eMaiden[MAIDEN_FRAMERATE])
+                    maidenSound(eMaiden[MAIDEN_ID], SOUND_CLOSE, false)
                     maidenShake(eMaiden)
 
                     ArraySetArray(g_aMaiden, iItem, eMaiden)
@@ -1642,6 +1820,14 @@ public maidenGodMode(id)
     maidenMenu(id, MENU_ROOT)
 }
 
+public fwdEmitSound(iEnt, iChannel, const szSample[])
+{
+    if ( g_iSilentVictim && iEnt == g_iSilentVictim )
+        return FMRES_SUPERCEDE
+
+    return FMRES_IGNORED
+}
+
 public fwdUse(iEnt, iCaller, iActivator, iType, Float:fValue)
 {
     if ( !isMaiden(iEnt)
@@ -1741,7 +1927,7 @@ public fwdKilled(id, iAttacker, bGib)
         new eMaiden[MAIDEN], iItem
         if ( (iItem = maidenGet(eMaiden, g_ePlayerData[id][PDATA_MAIDEN_GHOST])) != -1 )
         {
-            maidenKill(eMaiden[MAIDEN_ID])
+            maidenKill(eMaiden)
             maidenRemove(iItem)
         }
 
@@ -2032,7 +2218,6 @@ stock maidenMaiden(eMaiden[MAIDEN], id, bool:bForced = false)
     g_ePlayerData[id][PDATA_MAIDEN_ID] = eMaiden[MAIDEN_ID]
     g_ePlayerData[id][PDATA_NEXT_DIE] = get_gametime() + (MAIDEN_DURATION_CLOSE / eMaiden[MAIDEN_FRAMERATE])
     set_pev(id, pev_movetype, MOVETYPE_NONE)
-    set_pev(id, pev_flags, pev(id, pev_flags) | FL_FROZEN)
     engfunc(EngFunc_SetView, id, eMaiden[MAIDEN_VIEW])
 
     if ( g_eSettings[SETTING_WRITE_MESSAGE_ON_DEATH] )
@@ -2169,10 +2354,13 @@ stock bool:isMaiden(iEnt)
     return pev_valid(iEnt) && pev(iEnt, pev_impulse) == MAIDEN_KEY
 }
 
-stock maidenKill(iEnt)
+stock maidenKill(eMaiden[MAIDEN])
 {
-    if ( pev_valid(iEnt) )
-        set_pev(iEnt, pev_flags, pev(iEnt, pev_flags) | FL_KILLME)
+    if ( pev_valid(eMaiden[MAIDEN_ID]) )
+        set_pev(eMaiden[MAIDEN_ID], pev_flags, pev(eMaiden[MAIDEN_ID], pev_flags) | FL_KILLME)
+
+    if ( pev_valid(eMaiden[MAIDEN_VIEW]) )
+        set_pev(eMaiden[MAIDEN_VIEW], pev_flags, pev(eMaiden[MAIDEN_VIEW], pev_flags) | FL_KILLME)
 }
 
 stock parseSetting(iType, szValue[], iValueLen, any:aOutput[], iOutputLength)
@@ -2304,12 +2492,14 @@ stock DisableForward()
 
 stock EnableMaiden()
 {
+    g_iFwdEmitSound = register_forward(FM_EmitSound, "fwdEmitSound")
     EnableHamForward(g_iFwdUse)
     EnableHamForward(g_iFwdObjectCaps)
 }
 
 stock DisableMaiden()
 {
+    unregister_forward(FM_EmitSound, g_iFwdEmitSound)
     DisableHamForward(g_iFwdUse)
     DisableHamForward(g_iFwdObjectCaps)
 }

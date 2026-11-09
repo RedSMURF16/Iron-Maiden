@@ -13,6 +13,11 @@ MAIDEN_CHAT_SHOW_ALL_HIDDEN                    = All Iron Maidens are now Hidden
 MAIDEN_CHAT_STATUS_CURRENT                     = ^3%s ^1is %L
 MAIDEN_CHAT_STATUS_ALL_ENABLED                 = All Iron Maidens are now Enabled
 MAIDEN_CHAT_STATUS_ALL_DISABLED                = All Iron Maidens are now Disabled
+MAIDEN_CHAT_VOTE_DISABLED                      = Voting is disabled
+MAIDEN_CHAT_VOTE_COOLDOWN                      = Wait a little longer before starting another vote
+MAIDEN_CHAT_VOTE_FAILED                        = The vote to execute ^3%s ^1has failed
+MAIDEN_CHAT_VOTE_PASSED                        = The vote to execute ^3%s ^1has passed
+MAIDEN_CHAT_VOTE_NO_TARGETS                    = There are no alive players to vote for
 
 MAIDEN_CHAT_SHOWN                              = Shown
 MAIDEN_CHAT_HIDDEN                             = Hidden
@@ -39,6 +44,8 @@ MAIDEN_ROOT_STATUS                             = Status Settings
 MAIDEN_ROOT_NOCLIP                             = Status Noclip %L
 MAIDEN_ROOT_GODMODE                            = Status Godmode %L
 MAIDEN_ROOT_ROTATE                             = Adjust Rotation
+MAIDEN_ROOT_VOTE                               = Select a player to execute
+MAIDEN_ROOT_VOTE_CONFIRM                       = Execute \y%s\d?
 
 MAIDEN_EDIT_SHOW                               = Edit Visibility
 MAIDEN_EDIT_STATUS                             = Edit Status
@@ -58,3 +65,6 @@ MAIDEN_ROTATE_UP                               = Turn Up
 MAIDEN_ROTATE_DOWN                             = Turn Down
 MAIDEN_ROTATE_GROUND                           = Set on ground >> %L
 MAIDEN_ROTATE_PLACE                            = Place Iron Maiden
+
+MAIDEN_VOTE_YES                                = \wYes
+MAIDEN_VOTE_NO                                 = \wNo
