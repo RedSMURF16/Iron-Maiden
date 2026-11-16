@@ -19,6 +19,10 @@ This plugin adds placeable Iron Maidens to Counter-Strike 1.6, allowing players 
 - Save and load Iron Maiden placements per map
 - Configure default behavior and create custom Iron Maiden presets
 
+## 📋 Requirements
+- ReGameDLL
+- AMX Mod X 1.10+
+
 ## ⚙️ Configuration
 ```ini
 # To add a new Iron Maiden, follow the example below:
