@@ -9,9 +9,11 @@
 *		None
 *
 *   Commands:
-*       say /maiden [name | all]       "Opens the Maiden menu or executes the specified player(s)."
-*       say_team /maiden [name | all]  "Opens the Maiden menu or executes the specified player(s)."
-*       ironmaiden_reload                 "Reloads the configuration file."
+*       say /maiden [name | all]            "Opens the Maiden menu or executes the specified player(s)."
+*       say_team /maiden [name | all]       "Opens the Maiden menu or executes the specified player(s)."
+*       say /maiden_vote                    "Opens the player voting menu."
+*       say_team /maiden_vote               "Opens the player voting menu."
+*       ironmaiden_reload                   "Reloads the configuration file."
 *
 *	Changelog:
 *       v1.0: Initial release.
